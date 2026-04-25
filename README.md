@@ -1,10 +1,5 @@
 # Hacktech 2026
 
-**event:** Hacktech 2026 @ Caltech (Pasadena), Fri-Sun 2026-04-24 → 2026-04-26
-**venue:** Avery House, 293 S Holliston Ave, Pasadena CA 91106
-**team (4):** Melody · Alex Li · Suhaan · James (Suhaan's friend, joined Apr 23/24)
-**status as of Apr 24 (flight day):** scope locked, build Fri 9pm → Sun 9am
-
 ---
 
 ## pitch (opening)
@@ -102,7 +97,7 @@ Using window positions + orientations from the 3D twin, K2 simulates sun arc thr
 - **viz**: 24h time-lapse scrubber along the twin's bottom edge — drag to advance time, watch shadows sweep, FOV cones change color (green→amber→red) as conditions degrade. Hour markers, sunrise/sunset notches.
 - **K2 prompt hook**: "given window normals {…}, latitude {…}, date, list time-windows where each camera underperforms; suggest mitigation per camera (move / IR / HDR / supplemental light)."
 
-### budget slider (ship this — interactive judging moment)
+### budget slider
 Horizontal slider docked along the bottom of the twin. Drag → placement re-optimizes live.
 - **range**: $500 → $50k (log scale), with notches at SMB / mid-market / campus tiers
 - **as you drag**: cameras spawn/despawn with particle birth-burst, FOV cones fade in/out, coverage % readout animates, K2 reasoning panel streams the tradeoff (*"At $2,400, dropping CAM-03 (loading dock) for two CAM-Lite at side entrances raises entry-point coverage from 4/6 to 6/6 but reduces back-zone dwell capture."*)
@@ -118,19 +113,11 @@ Click a threat model (burglar / insider / pro) → A* path animates through the 
 ### privacy zones (auto-detected)
 Twin segments rooms semantically (bathroom, breakroom, private office). K2 auto-masks these from coverage objective and warns if a placed camera's FOV intersects. Compliance angle for the Cybersecurity track.
 
-### compliance overlay (stretch)
-Toggle: HIPAA / PCI / GDPR. Twin highlights zones with regulatory placement constraints (e.g. PCI: cameras over POS but not capturing keypad). Cheap to slide-deck even if not built.
-
-### insurance discount estimator (slide-only acceptable)
-Given placement plan → estimated insurance premium reduction. "Plan saves $2,400/yr — pays for itself in 8 months." Pitch ammunition.
-
 ### cable / mount feasibility (cut unless trivial)
 Flag cameras placed where mounting is implausible (glass walls, drop ceilings without backing). Low effort if the twin already has wall-material labels.
 
 ### multi-floor stacking (stretch)
 Z-axis scrub to navigate floors. Probably overscope for 36hr.
-
-**ship priority**: lighting sim ⭐⭐⭐ · budget slider ⭐⭐⭐ · threat-path replay ⭐⭐⭐ (already in arc) · privacy zones ⭐⭐ · what-if edits ⭐⭐ · everything else slide-only.
 
 ---
 
@@ -150,100 +137,5 @@ Z-axis scrub to navigate floors. Probably overscope for 36hr.
 - **insider** — knows layout + sensor positions, disables one then exfils
 - **professional** — tools (glass-cut, grappling), systematic, longest time budget
 
-### Ironsite API
-Use unknown — Melody to investigate at Sat 6pm Ironsite fireside. Burn credits in critical path once known (likely as object/material labeler on video frames, or reasoning-API alternative to K2). Track entry: still strong on "spatial task models fail" framing even without API integration; integration upgrades it from ⭐⭐⭐ → ⭐⭐⭐⭐.
-
 ---
 
-## ux / visual direction
-
-**aesthetic**: Anduril-website-elegant + Mehretu layered linework + Hicks textural density + Blade Runner 2049 atmospheric. Code-as-art, NOT SaaS-dashboard.
-
-**design language locked**:
-- type: monospace (Berkeley/JetBrains/IBM Plex), lowercase body, tabular figures
-- palette: `#0a0a0a` ground / off-white pointcloud / `#00d4ff` FOV-cyan / vault-red / exit-green / amber for "locked" confidence
-- motion: easeOutExpo, gravity > spring, nothing bounces
-- sound (optional): low drone + camera-clicks + breach-alarm sweep. no score.
-
-**8 particle-shader uses, one base shader**:
-1. pointcloud render (confidence gradient)
-2. FOV cones (volumetric dust-motes inside)
-3. coverage heatmap (ground-plane density)
-4. sensor shockwave (radial burst on trigger)
-5. attacker motion-blur trail
-6. camera birth-spawn burst
-7. motion-detection ghost-particles
-8. cold-open ambient drift
-
-Coherence lever: every visual reads as "same particle system, different params." Syntaxesia move.
-
-**hero frame** (design backwards from this): mid-heist, 3 FOV cones lit with dust-motes, one firing red shockwave, Mehretu-dense pointcloud behind, terminal log mid-stream, motion-detection ghost-bbox foreground.
-
-**avoid**: flat SaaS, glowy-RGB "AI", Y2K retro, animated logo reveals, glitch overlays everywhere (only on breach), music score, floating emojis.
-
----
-
-## prize tracks (single submission, up to 7)
-
-| track | prize | fit |
-|---|---|---|
-| **Ironsite** | $10k/$5k/$2.5k | ⭐⭐⭐ "spatial task current models fail" — direct |
-| **IFM K2 Think V2** | reMarkable | ⭐⭐⭐ reasoning-core product |
-| **Cybersecurity/Safety** | NuPhy keyboard | ⭐⭐⭐ literal name match |
-| **Not So Sexy** | Whoop | ⭐⭐⭐ B2B physical security |
-| **Palohouse** | $20k SAFE + 10-day hackerhouse | ⭐⭐⭐ credible startup vector |
-| **Best Use of AI** | Mac Mini M4 | ⭐⭐⭐ multi-modal (3D recon + reasoning + detection) |
-| **Creativity** | MX Master | ⭐⭐⭐ particle-shader heist viz |
-
-**opt out**: YC, Listen Labs, Sideshift.
-
----
-
-## differentiators vs SIQUR (Catapult 2026 winner — direct precedent)
-
-1. **K2 semantic-priority reasoning** (vs SIQUR's OR-Tools CP-SAT solver)
-2. **Multi-threat-model adversarial** (3 distinct attacker classes)
-3. **Self-improvement iteration loop** (K2 red-teams its own design)
-4. **No LiDAR, no floor plan** — single-cam streaming reconstruction
-5. **Live motion-detection surveillance layer** (vs SIQUR's post-hoc Watchman)
-
----
-
-## team split
-
-- **Suhaan** — input + reconstruction model (StreamVGGT verification) + ground-plane extraction
-- **Alex** — geometry/raycasting + A* threat models + Three.js viz + breach FX. Ramp: 30min pointcloud-101 from Suhaan Fri 9-9:30pm
-- **James** — YOLO motion detection + 3D projection overlay
-- **Melody** — K2 prompts + iteration loop + particle shaders + demo narrative + pitch + hero-frame design
-
-**contingency Sat 12pm**: if Alex behind on geometry → Suhaan absorbs raycasting, Alex shifts to UI/animation. If James behind on motion detection → drop layer, keep in slides only.
-
----
-
-## schedule
-
-**Fri 4/24**: 3-5pm check-in · 5-6:30pm opening · 7:30-9pm IFM K2 workshop (mandatory) · **9pm hack starts**
-**Sat 4/25**: 6-7pm Ironsite fireside (Melody attend — ask about API + judging) · night = polish
-**Sun 4/26**: 9am submit · 10-12pm Round 1 · 1-1:30pm Round 2 (if finalist) · 2pm closing
-
----
-
-## urgent Fri pre-9pm
-
-- [ ] Suhaan: verify StreamVGGT repo + license + hardware reqs + output format from LinkedIn post
-- [ ] Suhaan: pre-cache 3 ScanNet scenes locally
-- [ ] Melody: IFM WhatsApp join → K2 API key
-- [ ] Melody: K2 design + adversarial prompts drafted on flight (5hr offline window)
-- [ ] All: pre-install Node + Three.js + PyTorch + ultralytics, git clones ready
-
-## fallback hierarchy
-live scan → pre-recorded video → ScanNet pre-baked pointcloud (bulletproof)
-
----
-
-## success definitions
-
-- **min**: working demo + submit + Round 1
-- **target**: 1+ prize
-- **stretch**: Ironsite ($10k cash) OR Palohouse ($20k SAFE + house)
-- **moonshot**: 3+ prizes stacked
