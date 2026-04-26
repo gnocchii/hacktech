@@ -40,10 +40,7 @@ CAMERA_TYPES = [
     {"type": "PTZ",       "cost_usd": 599, "fov_h": 65,  "fov_v": 40, "ir": True,  "hdr": True},
 ]
 
-CEILING_HEIGHT = 2.3  # meters — mount height. Sits ~30-40cm below a typical
-                     # 2.7m ceiling so cameras are clearly inside the room
-                     # (and below FBX ceilings in the render).
-CEILING_CLEARANCE = 0.4  # min headroom below the scene's z-bounds top
+CEILING_HEIGHT = 2.7  # meters — standard mount height
 
 
 def optimize(
@@ -205,21 +202,18 @@ def _dist_to_segment(px: float, py: float, x0: float, y0: float, x1: float, y1: 
 
 def _build_candidates(scene: dict, step: float) -> list[dict]:
     """
-    Mount points along each wall, every `step` meters. For each wall we try
-    BOTH inward-normal directions (toward each room face), then keep only
-    candidates that fall inside one of the room polygons AND are at least
-    MIN_WALL_CLEARANCE meters from every wall segment.
+    Mount points along each wall, every `step` meters, offset inward toward
+    the scene center up to ceiling height.
+
+    Constraint A: candidates must be at least MIN_WALL_CLEARANCE from every other wall.
+    Constraint B: candidates must be inside a room polygon (Polycam scenes).
+    Without this the optimizer can "cheat" by placing a camera outside the
+    mesh and still claim coverage of room cells. avery_house (no _raw_rooms)
+    falls through unfiltered — its bbox rooms tile the scene anyway.
     """
     candidates: list[dict] = []
     bounds = scene["bounds"]
-    cz = min(CEILING_HEIGHT, bounds["max"][2] - CEILING_CLEARANCE)
-
-    polygons = [r["polygon"] for r in (scene.get("_raw_rooms") or []) if r.get("polygon")]
-
-    def inside_any_room(x: float, y: float) -> bool:
-        if not polygons:
-            return True
-        return any(_point_in_polygon(x, y, poly) for poly in polygons)
+    cz = min(CEILING_HEIGHT, bounds["max"][2] - 0.1)
 
     walls = scene.get("walls", [])
 
@@ -232,7 +226,7 @@ def _build_candidates(scene: dict, step: float) -> list[dict]:
     def clear_of_all_walls(x: float, y: float, source_wall_id: str) -> bool:
         for w, seg in zip(walls, wall_segments):
             if w["id"] == source_wall_id:
-                continue  # skip the wall this candidate is mounted on
+                continue
             if _dist_to_segment(x, y, *seg) < MIN_WALL_CLEARANCE:
                 return False
         return True
@@ -244,32 +238,43 @@ def _build_candidates(scene: dict, step: float) -> list[dict]:
         if length < 0.5:
             continue
         dx, dy = (x1 - x0) / length, (y1 - y0) / length
-        normals = [(-dy, dx), (dy, -dx)]
+        nx, ny = -dy, dx
+        # Flip normal toward scene center if needed
+        cx, cy = (bounds["min"][0] + bounds["max"][0]) / 2, (bounds["min"][1] + bounds["max"][1]) / 2
+        wall_mid_x = (x0 + x1) / 2
+        wall_mid_y = (y0 + y1) / 2
+        if (nx * (cx - wall_mid_x) + ny * (cy - wall_mid_y)) < 0:
+            nx, ny = -nx, -ny
 
         n_steps = max(1, int(length / step))
         for i in range(n_steps + 1):
             t = i / n_steps if n_steps > 0 else 0.5
-            wx = x0 + t * (x1 - x0)
-            wy = y0 + t * (y1 - y0)
+            mx = x0 + t * (x1 - x0) + nx * 0.3
+            my = y0 + t * (y1 - y0) + ny * 0.3
+            if not (bounds["min"][0] <= mx <= bounds["max"][0]):
+                continue
+            if not (bounds["min"][1] <= my <= bounds["max"][1]):
+                continue
+            if not clear_of_all_walls(mx, my, w["id"]):
+                continue
+            target = [mx + nx * 4.0, my + ny * 4.0, 0.0]
+            candidates.append({
+                "position": [round(mx, 2), round(my, 2), cz],
+                "target": [round(target[0], 2), round(target[1], 2), 0.0],
+                "wall_id": w["id"],
+                "normal": [nx, ny, 0.0],
+            })
 
-            for nx, ny in normals:
-                mx = wx + nx * 0.3
-                my = wy + ny * 0.3
-                if not (bounds["min"][0] <= mx <= bounds["max"][0]):
-                    continue
-                if not (bounds["min"][1] <= my <= bounds["max"][1]):
-                    continue
-                if not inside_any_room(mx, my):
-                    continue
-                if not clear_of_all_walls(mx, my, w["id"]):
-                    continue
-                target = [mx + nx * 4.0, my + ny * 4.0, 0.0]
-                candidates.append({
-                    "position": [round(mx, 2), round(my, 2), cz],
-                    "target": [round(target[0], 2), round(target[1], 2), 0.0],
-                    "wall_id": w["id"],
-                    "normal": [nx, ny, 0.0],
-                })
+    # ── Constraint B: drop any candidate outside the room polygons ──
+    polygons = [r["polygon"] for r in (scene.get("_raw_rooms") or []) if r.get("polygon")]
+    if polygons:
+        before = len(candidates)
+        candidates = [
+            c for c in candidates
+            if any(_point_in_polygon(c["position"][0], c["position"][1], poly) for poly in polygons)
+        ]
+        print(f"[optimizer] polygon-inside filter: {before} → {len(candidates)} candidates")
+
     return candidates
 
 
@@ -382,6 +387,7 @@ def _local_search(scene, cameras, locked, candidates, cells_xy, cell_weights, co
             covered = new_covered
             current_score = new_score
     return cameras, covered
+
 
 
 # ─── post-optimization analytics ──────────────────────────────────
