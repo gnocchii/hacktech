@@ -164,9 +164,17 @@ export const runWhatIf = (sceneId: string, removedEntryIds: string[], budgetUsd:
 
 // ─── PDF report export ───────────────────────────────────────────
 
-export async function exportReport(sceneId: string, budgetUsd: number): Promise<void> {
-  const res = await fetch(`${BASE}/report/${sceneId}?budget=${budgetUsd}`)
-  if (!res.ok) throw new Error(`GET /report/${sceneId} → ${res.status}`)
+export async function exportReport(
+  sceneId: string,
+  cameras: Camera[],
+  analysis: Record<string, unknown>,
+): Promise<void> {
+  const res = await fetch(`${BASE}/report/${sceneId}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ cameras, analysis }),
+  })
+  if (!res.ok) throw new Error(`POST /report/${sceneId} → ${res.status}`)
   const blob = await res.blob()
   const url = URL.createObjectURL(blob)
   const a = document.createElement("a")

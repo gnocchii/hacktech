@@ -4,7 +4,7 @@ import { useSentinel } from "@/store/sentinel"
 import { uploadUsdz, fetchScene, fetchImportance } from "@/lib/api"
 
 export default function TopBar() {
-  const { scene, cameras, k2Streaming, setScene, setImportance, setSceneId, sceneId, setFeedsFbxUrl, feedsFbxUrl, budget } = useSentinel()
+  const { scene, cameras, k2Streaming, setScene, setImportance, setSceneId, sceneId, setFeedsFbxUrl, feedsFbxUrl, budget, coveragePct } = useSentinel()
   const fileRef = useRef<HTMLInputElement>(null)
   const fbxRef  = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
@@ -15,7 +15,8 @@ export default function TopBar() {
     setExporting(true)
     try {
       const { exportReport } = await import("@/lib/api")
-      await exportReport(sceneId, budget)
+      const analysis = { ...(scene?.analysis as Record<string, unknown> ?? {}), coverage_pct: coveragePct }
+      await exportReport(sceneId, cameras, analysis)
     } catch (e) {
       console.error(e)
       alert(`PDF export failed: ${e}`)

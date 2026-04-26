@@ -5,18 +5,28 @@ PDF report generation for Sentinel camera placement analysis.
 from datetime import datetime
 from fastapi import APIRouter
 from fastapi.responses import Response
+from pydantic import BaseModel
 
 from app.api.routes.scene import load_scene
 
 router = APIRouter(prefix="/report", tags=["report"])
 
 
-@router.get("/{scene_id}")
-def generate_report(scene_id: str, budget: float = 2500.0) -> Response:
-    """Generate and download a PDF security camera placement report."""
+class ReportRequest(BaseModel):
+    cameras: list[dict] = []
+    analysis: dict = {}
+
+
+@router.post("/{scene_id}")
+def generate_report(scene_id: str, req: ReportRequest) -> Response:
+    """Generate and download a PDF security camera placement report.
+    Accepts the current camera list and analysis from the frontend so the PDF
+    reflects live optimizer results rather than the stale on-disk scene."""
     scene = load_scene(scene_id)
-    cameras = scene.get("cameras", [])
-    analysis = scene.get("analysis", {})
+
+    # Use frontend-supplied cameras/analysis; fall back to scene file if empty
+    cameras = req.cameras if req.cameras else scene.get("cameras", [])
+    analysis = req.analysis if req.analysis else scene.get("analysis", {})
 
     pdf_bytes = _build_pdf(scene_id, scene, cameras, analysis)
     return Response(
@@ -37,6 +47,9 @@ def _build_pdf(scene_id: str, scene: dict, cameras: list, analysis: dict) -> byt
     pdf = FPDF()
     pdf.set_auto_page_break(auto=True, margin=15)
 
+    coverage_pct  = float(analysis.get("coverage_pct", 0))
+    total_cost    = sum(c.get("cost_usd", 0) for c in cameras)  # always computed from live list
+
     # ─── Page 1: Overview + cameras ──────────────────────────────────
     pdf.add_page()
     _page_header(pdf, "SENTINEL Security Report")
@@ -48,7 +61,8 @@ def _build_pdf(scene_id: str, scene: dict, cameras: list, analysis: dict) -> byt
     pdf.set_text_color(60, 60, 60)
     pdf.set_font("Helvetica", "", 9)
     pdf.cell(0, 5, f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", new_x="LMARGIN", new_y="NEXT")
-    pdf.cell(0, 5, f"Floor area: {scene.get('floor_area_m2', 0):.1f} m2  |  "
+    pdf.cell(0, 5,
+             f"Floor area: {scene.get('floor_area_m2', 0):.1f} m2  |  "
              f"Rooms: {len(scene.get('rooms', []))}  |  "
              f"Walls: {len(scene.get('walls', []))}  |  "
              f"Entry points: {len(scene.get('entry_points', []))}",
@@ -57,22 +71,18 @@ def _build_pdf(scene_id: str, scene: dict, cameras: list, analysis: dict) -> byt
 
     # Summary stats
     _section_heading(pdf, "Summary")
-    stats = [
-        ("Floor coverage",      f"{analysis.get('coverage_pct', 0):.1f}%"),
-        ("Cameras placed",      str(len(cameras))),
-        ("Total cost",          f"${analysis.get('total_cost_usd', 0):,.0f}"),
-        ("Entry points covered",f"{analysis.get('entry_points_covered', 0)} / {analysis.get('entry_points_total', 0)}"),
-        ("Blind spots",         str(len(analysis.get("blind_spots", [])))),
-        ("Lighting alerts",     str(len(analysis.get("lighting_risks", [])))),
-    ]
-    _two_col_table(pdf, stats)
+    _two_col_table(pdf, [
+        ("Floor coverage", f"{coverage_pct:.1f}%"),
+        ("Cameras placed", str(len(cameras))),
+        ("Total cost",     f"${total_cost:,.0f}"),
+    ])
     pdf.ln(4)
 
     # Camera placement table
     if cameras:
         _section_heading(pdf, "Camera Placement")
         headers = ["ID", "Type", "Position (x,y,z)", "FOV H x V", "Cost ($)", "IR", "HDR", "Status"]
-        col_w   = [20,   26,    40,               20,          18,      10,  10,    18]
+        col_w   = [20,   26,     40,                 20,           18,         10,    10,    18]
         rows = []
         for cam in cameras:
             pos = cam.get("position", [0, 0, 0])
@@ -89,68 +99,13 @@ def _build_pdf(scene_id: str, scene: dict, cameras: list, analysis: dict) -> byt
         _data_table(pdf, headers, col_w, rows)
         pdf.ln(4)
 
-    # ─── Page 2: Threats + risks ─────────────────────────────────────
-    pdf.add_page()
-    _page_header(pdf, "SENTINEL Security Report - Threats & Risks")
-
-    # Entry points
-    entry_points = scene.get("entry_points", [])
-    if entry_points:
-        _section_heading(pdf, "Entry Points")
-        headers = ["ID", "Label", "Type", "Threat Weight"]
-        col_w   = [28,   70,      28,     34]
-        rows = [
-            [ep.get("id",""), _safe(ep.get("label","")), ep.get("type",""), f"{ep.get('threat_weight', 0):.2f}"]
-            for ep in entry_points
-        ]
-        _data_table(pdf, headers, col_w, rows)
-        pdf.ln(4)
-
-    # Blind spots
-    blind_spots = analysis.get("blind_spots", [])
-    if blind_spots:
-        _section_heading(pdf, "Blind Spots")
-        sev_colors = {"high": (220, 50, 50), "medium": (200, 130, 0), "low": (80, 80, 80)}
-        pdf.set_font("Helvetica", "", 8)
-        for bs in blind_spots:
-            pos = bs.get("position", [0, 0, 0])
-            sev = bs.get("severity", "low")
-            r, g, b = sev_colors.get(sev, (80, 80, 80))
-            pdf.set_text_color(r, g, b)
-            pdf.cell(20, 6, f"[{sev.upper()}]")
-            pdf.set_text_color(60, 60, 60)
-            pdf.cell(0, 6,
-                     _safe(f"@ ({pos[0]:.1f}, {pos[1]:.1f}) - {bs.get('reason', '')}"),
-                     border="B", new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
-
-    # Lighting risks
-    lighting_risks = analysis.get("lighting_risks", [])
-    if lighting_risks:
-        _section_heading(pdf, "Lighting Risks")
-        headers = ["Camera", "Type", "Window", "Mitigation"]
-        col_w   = [24, 18, 24, 94]
-        rows = []
-        for lr in lighting_risks:
-            rw = lr.get("risk_window", {})
-            time_range = f"{rw.get('start_hour',0):02d}:00-{rw.get('end_hour',0):02d}:00"
-            rows.append([
-                lr.get("camera_id", ""),
-                lr.get("type", ""),
-                time_range,
-                _safe(lr.get("mitigation", "")),
-            ])
-        _data_table(pdf, headers, col_w, rows)
-        pdf.ln(4)
-
-    # ─── Footer ───────────────────────────────────────────────────────
-    coverage = analysis.get("coverage_pct", 0)
+    # Footer
     pdf.set_font("Helvetica", "I", 8)
     pdf.set_text_color(140, 140, 140)
     pdf.multi_cell(0, 5,
         f"Sentinel AI automated placement analysis. "
-        f"Current configuration achieves {coverage:.1f}% floor coverage. "
-        f"Review flagged blind spots and consider reinforcing coverage near high-threat entry zones. "
+        f"Current configuration achieves {coverage_pct:.1f}% floor coverage with {len(cameras)} cameras "
+        f"at a total cost of ${total_cost:,.0f}. "
         f"All recommendations are advisory - consult a certified security integrator before deployment.")
 
     return bytes(pdf.output())
