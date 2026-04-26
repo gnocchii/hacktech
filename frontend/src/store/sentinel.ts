@@ -80,6 +80,7 @@ interface SentinelState {
   pushActivity: (a: Omit<Activity, "id" | "ts"> & { id?: string; ts?: number }) => void
   loading: Record<string, LoadingEntry>
   startLoading: (key: string, label: string, progress?: number) => void
+  setLoadingProgress: (key: string, progress: number) => void
   stopLoading: (key: string) => void
 }
 
@@ -163,6 +164,11 @@ export const useSentinel = create<SentinelState>((set) => ({
   startLoading: (key, label, progress) => set((s) => ({
     loading: { ...s.loading, [key]: { label, progress } },
   })),
+  setLoadingProgress: (key, progress) => set((s) => {
+    const cur = s.loading[key]
+    if (!cur) return {}
+    return { loading: { ...s.loading, [key]: { ...cur, progress } } }
+  }),
   stopLoading: (key) => set((s) => {
     const next = { ...s.loading }
     delete next[key]

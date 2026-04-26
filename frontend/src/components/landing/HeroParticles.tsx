@@ -170,6 +170,7 @@ export default function HeroParticles() {
     loop()
 
     function onResize() {
+      if (!mount) return
       W = mount.clientWidth
       H = mount.clientHeight
       renderer.setSize(W, H, false)
@@ -185,7 +186,7 @@ export default function HeroParticles() {
     return () => {
       cancelAnimationFrame(raf)
       window.removeEventListener("resize", onResize)
-      mount.removeChild(renderer.domElement)
+      if (mount) mount.removeChild(renderer.domElement)
       geo.dispose()
       mat.dispose()
       renderer.dispose()

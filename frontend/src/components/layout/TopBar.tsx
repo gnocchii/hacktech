@@ -1,20 +1,17 @@
 "use client"
 import Link from "next/link"
-import { useCallback, useEffect, useRef, useState } from "react"
+import { useCallback, useEffect, useRef } from "react"
 import { useSentinel } from "@/store/sentinel"
-import { recomputeImportance, streamImportanceReasoning, exportReport, optimizeImportance } from "@/lib/api"
+import { optimizeImportance } from "@/lib/api"
 
 export default function TopBar() {
   const {
-    scene, setImportance, sceneId,
-    appendK2Text, clearK2Text, setK2Streaming,
+    scene, sceneId,
     budget,
     pushActivity, startLoading, stopLoading,
     setCameras, setCoveragePct, setSceneAnalysis,
     setImportanceScore, setOptimizing, optimizing,
   } = useSentinel()
-  const [reasoning, setReasoning] = useState(false)
-  const [exporting, setExporting] = useState(false)
 
   const alerts = scene?.analysis.lighting_risks.length ?? 0
 
@@ -62,43 +59,6 @@ export default function TopBar() {
     autoRanFor.current = sceneId
     runOptimize(sceneId)
   }, [sceneId, scene, cameras.length, optimizing, runOptimize])
-
-  const handleReason = () => {
-    if (!sceneId) return
-    clearK2Text()
-    setK2Streaming(true)
-    setReasoning(true)
-    startLoading("k2-stream", "K2 reasoning")
-    pushActivity({ severity: "info", title: "K2 reasoning stream started" })
-    const stop = streamImportanceReasoning(
-      sceneId,
-      appendK2Text,
-      () => {
-        setK2Streaming(false)
-        setReasoning(false)
-        stopLoading("k2-stream")
-        pushActivity({ severity: "success", title: "K2 reasoning complete", body: "Importance map updated" })
-        recomputeImportance(sceneId).then(setImportance).catch(() => {})
-      },
-    )
-    setTimeout(() => stop(), 120_000)
-  }
-
-  const handleExportPdf = async () => {
-    if (!sceneId) return
-    setExporting(true)
-    startLoading("export-pdf", "Generating report PDF")
-    try {
-      await exportReport(sceneId, budget)
-      pushActivity({ severity: "success", title: "PDF report exported" })
-    } catch (e) {
-      console.error(e)
-      pushActivity({ severity: "critical", title: "PDF export failed", body: String(e) })
-    } finally {
-      setExporting(false)
-      stopLoading("export-pdf")
-    }
-  }
 
   return (
     <header className="grid grid-cols-3 items-center px-8 py-4 shrink-0">

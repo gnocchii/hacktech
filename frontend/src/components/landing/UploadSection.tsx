@@ -145,27 +145,3 @@ export default function UploadSection() {
     </section>
   )
 }
-              <button
-                key={s.id}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  kick(s.label)
-                }}
-                className="rounded border border-border px-3 py-2 text-[11px] text-text/80 transition-colors hover:border-cyan hover:text-cyan"
-              >
-                {s.label}
-              </button>
-            ))}
-          </div>
-
-          <div className="mt-2 min-h-4 text-[11px] tracking-wider text-cyan">
-            {status}
-          </div>
-        </div>
-
-        {/* live reconstruction */}
-        <Reconstruction trigger={trigger} label={label} />
-      </div>
-    </section>
-  )
-}

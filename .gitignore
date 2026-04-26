@@ -50,3 +50,5 @@ reconstruction/weights/
 # ─── Git backups / filter-repo artifacts ──────────────────────────
 .git.bak/
 .git-replace.txt
+.vercel
+.env*.local
