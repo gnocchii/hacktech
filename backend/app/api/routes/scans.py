@@ -1,20 +1,13 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, UploadFile
 
-try:
-    from reconstruction.processor import process_ply_to_pointcloud
-except ModuleNotFoundError:
-    repo_root = Path(__file__).resolve().parents[4]
-    if str(repo_root) not in sys.path:
-        sys.path.append(str(repo_root))
-    from reconstruction.processor import process_ply_to_pointcloud
+from reconstruction.processor import process_ply_to_pointcloud
 
 router = APIRouter(prefix="/scans", tags=["scans"])
 
