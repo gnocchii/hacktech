@@ -101,7 +101,7 @@ export default function ImportanceMap() {
   }, [scene, importance])
 
   return (
-    <div className="w-full h-full flex flex-col bg-bg">
+    <div className="w-full h-full flex flex-col bg-transparent">
       <div className="px-4 py-2 border-b border-border flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold text-text">K2 Importance Map</h3>

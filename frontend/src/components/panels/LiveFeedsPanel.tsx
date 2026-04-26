@@ -7,11 +7,7 @@ export default function LiveFeedsPanel() {
   const { cameras, selectedCameraId, selectCamera } = useSentinel()
 
   return (
-    <section className="p-4 space-y-2">
-      <div className="flex items-center justify-between">
-        <h2 className="text-dim text-xs tracking-widest uppercase">Live Feeds</h2>
-        <span className="text-dim text-[10px]">click to inspect</span>
-      </div>
+    <section className="px-5 pb-5">
       <div className="grid grid-cols-2 gap-1.5">
         {cameras.map((cam) => (
           <FeedTile

@@ -14,7 +14,7 @@ export default function ThreatPath() {
   const entryPoints = scene.entry_points
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-bg gap-4 p-8">
+    <div className="w-full h-full flex flex-col items-center justify-center bg-transparent gap-4 p-8">
       <p className="text-dim text-sm">Select an entry point to visualize the attacker's optimal path to the server room.</p>
 
       <div className="flex flex-wrap gap-2 justify-center">

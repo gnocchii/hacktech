@@ -66,27 +66,25 @@ export default function ScanUploadPanel() {
   }
 
   return (
-    <section className="p-4 space-y-3">
-      <h2 className="text-dim text-xs tracking-widest uppercase">LiDAR Upload</h2>
-
-      <label className="block text-xs text-text">
-        <span className="block mb-1 text-dim">Upload .ply scan</span>
+    <section className="px-5 pb-5 space-y-3">
+      <label className="block">
         <input
           type="file"
           accept=".ply"
-          className="block w-full text-xs file:mr-3 file:py-1.5 file:px-2 file:rounded file:border-0 file:bg-cyan/20 file:text-cyan"
+          className="block w-full text-[11px] text-dim file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border file:border-white/10 file:bg-white/[0.04] file:text-text/90 file:font-medium file:cursor-pointer hover:file:bg-white/[0.08]"
           onChange={onPickFile}
         />
       </label>
 
-      <div className="text-[11px] leading-relaxed text-dim break-words">{message}</div>
+      <div className="text-[11px] leading-relaxed text-text/70 break-words">{message}</div>
 
-      <div className="flex items-center gap-2 text-[11px]">
-        <StatusDot status={status} />
-        <span className="uppercase tracking-wide">{status}</span>
+      <div className="flex items-center justify-between text-[11px]">
+        <div className="flex items-center gap-2">
+          <StatusDot status={status} />
+          <span className="text-text/80 capitalize">{status}</span>
+        </div>
+        {scanId && <span className="text-[10px] text-dim font-mono truncate max-w-[60%]">{scanId}</span>}
       </div>
-
-      {scanId && <div className="text-[10px] text-dim">scan_id: {scanId}</div>}
     </section>
   )
 }

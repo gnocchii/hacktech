@@ -1,39 +1,56 @@
 "use client"
-import { useSentinel } from "@/store/sentinel"
+import { useEffect, useState } from "react"
 
-// Hardcoded demo alerts — replace with real-time feed later
 const DEMO_ALERTS = [
-  { id: "a1", severity: "warning", title: "Obstruction Detected", body: "CAM-03 FOV partially blocked — verify mount", time: "02:14" },
-  { id: "a2", severity: "info",    title: "Glare Warning",         body: "CAM-04 glare in 23 min (14:00–16:30)", time: "13:37" },
-  { id: "a3", severity: "success", title: "Re-analysis Complete",  body: "Coverage re-computed after budget change", time: "13:35" },
+  { id: "a1", severity: "warning", title: "Obstruction Detected", body: "CAM-03 FOV partially blocked — verify mount", time: "02:14:07" },
+  { id: "a2", severity: "info",    title: "Glare Warning",         body: "CAM-04 glare in 23 min (14:00–16:30)",     time: "13:37:42" },
+  { id: "a3", severity: "success", title: "Re-analysis Complete",  body: "Coverage re-computed after budget change",  time: "13:35:18" },
+  { id: "a4", severity: "info",    title: "K2 Think v2",           body: "Agent ready — 5 cameras synced",            time: "13:32:01" },
 ]
 
-const SEV_COLORS: Record<string, string> = {
-  warning: "border-amber/40 bg-amber/5",
-  info:    "border-cyan/30 bg-cyan/5",
-  success: "border-green/30 bg-green/5",
-  critical:"border-red/40 bg-red/5",
-}
-const SEV_DOT: Record<string, string> = {
-  warning: "bg-amber", info: "bg-cyan", success: "bg-green", critical: "bg-red",
+// Two-color palette: blue for info/warn/critical, green for success/ready
+const SEV_TAG: Record<string, { label: string; color: string }> = {
+  critical: { label: "ALERT", color: "text-cyan" },
+  warning:  { label: "WARN ", color: "text-cyan" },
+  info:     { label: "INFO ", color: "text-cyan" },
+  success:  { label: "OK   ", color: "text-green" },
 }
 
 export default function AlertsPanel() {
+  const [now, setNow] = useState<string | null>(null)
+  useEffect(() => {
+    const tick = () => setNow(nowStamp())
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [])
   return (
-    <section className="p-4 space-y-2 max-h-48 overflow-y-auto">
-      <h2 className="text-dim text-xs tracking-widest uppercase">
-        Alerts <span className="ml-1 text-amber font-semibold">{DEMO_ALERTS.length}</span>
-      </h2>
-      {DEMO_ALERTS.map((a) => (
-        <div key={a.id} className={`rounded border px-2 py-1.5 text-xs space-y-0.5 ${SEV_COLORS[a.severity]}`}>
-          <div className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${SEV_DOT[a.severity]}`} />
-            <span className="font-semibold text-text">{a.title}</span>
-            <span className="text-dim ml-auto">{a.time}</span>
+    <section className="px-4 pb-4 space-y-1.5">
+      {DEMO_ALERTS.map((a) => {
+        const tag = SEV_TAG[a.severity] ?? SEV_TAG.info
+        return (
+          <div key={a.id} className="term-line">
+            <span className="term-time">[{a.time}]</span>
+            <span className={`term-tag ${tag.color}`}>{tag.label}</span>
+            <span className="term-msg">
+              <span className="text-text">{a.title}</span>
+              <span className="text-dim"> — {a.body}</span>
+            </span>
           </div>
-          <p className="text-dim pl-3">{a.body}</p>
-        </div>
-      ))}
+        )
+      })}
+      <div className="term-line" suppressHydrationWarning>
+        <span className="term-time">[{now ?? "--:--:--"}]</span>
+        <span className="term-tag text-green">READY</span>
+        <span className="term-msg text-dim">Awaiting next event<span className="k2-cursor">▊</span></span>
+      </div>
     </section>
   )
+}
+
+function nowStamp() {
+  const d = new Date()
+  return [d.getHours(), d.getMinutes(), d.getSeconds()]
+    .map((n) => n.toString().padStart(2, "0"))
+    .join(":")
 }

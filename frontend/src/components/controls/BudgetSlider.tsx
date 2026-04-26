@@ -50,31 +50,50 @@ export default function BudgetSlider() {
   }, [sceneId, budget, optimizing, setCameras, setCoveragePct, setImportanceScore, setSceneAnalysis, setOptimizing])
 
   const pct = budgetToLog(budget)
+  const pctNum = pct * 100
 
   return (
-    <div className="flex items-center gap-3 flex-1 min-w-0">
-      <span className="text-dim text-[10px] shrink-0">BUDGET</span>
-      <input
-        type="range"
-        min={0}
-        max={1}
-        step={0.001}
-        value={pct}
-        onChange={handleSlide}
-        className="flex-1 accent-cyan h-1 cursor-pointer"
-      />
-      <span className="text-cyan text-xs font-semibold shrink-0 w-20 text-right">
+    <div className="flex items-center gap-4 flex-1 min-w-0">
+      <span className="text-dim text-[11px] uppercase tracking-[0.12em] shrink-0">Budget</span>
+
+      <div className="relative flex-1 h-5 flex items-center group">
+        <div className="relative w-full h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
+          <div
+            className="absolute inset-y-0 left-0 rounded-full transition-all duration-200"
+            style={{
+              width: `${pctNum}%`,
+              background: "linear-gradient(90deg, #89b4fa 0%, #cba6f7 100%)",
+              boxShadow: "0 0 10px rgba(137,180,250,0.45)",
+            }}
+          />
+        </div>
+        <div
+          className="absolute top-1/2 -translate-x-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-[0_0_0_3px_rgba(137,180,250,0.25),0_2px_8px_rgba(0,0,0,0.6)] pointer-events-none transition-transform duration-150 group-hover:scale-110"
+          style={{ left: `${pctNum}%` }}
+        />
+        <input
+          type="range"
+          min={0}
+          max={1}
+          step={0.001}
+          value={pct}
+          onChange={handleSlide}
+          className="absolute inset-0 w-full opacity-0 cursor-pointer"
+        />
+      </div>
+
+      <span className="text-text text-[13px] font-bold shrink-0 w-20 text-right tabular-nums">
         ${budget.toLocaleString()}
       </span>
       <button
         onClick={handleOptimize}
         disabled={optimizing || !sceneId}
-        className="px-3 py-1 rounded text-xs border border-cyan/40 text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-50 shrink-0"
+        className="glass-btn glass-btn--accent shrink-0"
       >
-        {optimizing ? "Optimizing…" : "Optimize Cameras"}
+        {optimizing ? "Optimizing…" : "Optimize"}
       </button>
       {importanceScore > 0 && (
-        <span className="text-green text-xs font-mono shrink-0">
+        <span className="text-green text-xs font-bold shrink-0 tabular-nums">
           {(importanceScore * 100).toFixed(1)}%
         </span>
       )}

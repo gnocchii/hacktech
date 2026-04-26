@@ -4,14 +4,13 @@ import { useSentinel } from "@/store/sentinel"
 import { uploadUsdz, fetchScene, fetchImportance, recomputeImportance, streamImportanceReasoning } from "@/lib/api"
 
 export default function TopBar() {
-  const { scene, cameras, k2Streaming, setScene, setImportance, setSceneId, sceneId, appendK2Text, clearK2Text, setK2Streaming, setFeedsFbxUrl, feedsFbxUrl } = useSentinel()
+  const { scene, setScene, setImportance, setSceneId, sceneId, appendK2Text, clearK2Text, setK2Streaming, setFeedsFbxUrl, feedsFbxUrl } = useSentinel()
   const fileRef = useRef<HTMLInputElement>(null)
   const fbxRef  = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)
   const [reasoning, setReasoning] = useState(false)
 
   const alerts = scene?.analysis.lighting_risks.length ?? 0
-  const onlineCameras = cameras.filter((c) => c.status !== "offline").length
 
   const handleUpload = async (file: File) => {
     setUploading(true)
@@ -59,13 +58,23 @@ export default function TopBar() {
   }
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 border-b border-border bg-surface shrink-0">
+    <header className="grid grid-cols-3 items-center px-8 py-4 shrink-0">
+      {/* Left — wordmark */}
       <div className="flex items-center gap-3">
-        <span className="text-cyan font-semibold tracking-widest text-sm">SENTINEL</span>
-        <span className="text-dim text-xs">v0.1 · {scene?.name ?? "Loading…"}</span>
+        <span
+          className="text-text text-[15px] font-bold tracking-[0.32em]"
+          style={{ fontFamily: "'Space Grotesk', system-ui, sans-serif" }}
+        >
+          SENTINEL
+        </span>
+        <div className="h-3.5 w-px bg-white/10" />
+        <span className="text-dim text-[11px] font-mono tracking-tight">
+          v0.1 <span className="text-muted/70 mx-1">·</span> {scene?.name ?? "loading…"}
+        </span>
       </div>
 
-      <div className="flex items-center gap-3 text-xs">
+      {/* Center — primary actions */}
+      <div className="flex items-center justify-center gap-2">
         <input
           ref={fileRef}
           type="file"
@@ -79,7 +88,7 @@ export default function TopBar() {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={uploading}
-          className="px-2.5 py-1 rounded border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-50"
+          className="glass-btn"
         >
           {uploading ? "Parsing…" : "Upload USDZ"}
         </button>
@@ -91,44 +100,43 @@ export default function TopBar() {
           onChange={(e) => {
             const f = e.target.files?.[0]
             if (f) handleUploadFbx(f)
-            e.target.value = ""  // allow re-selecting the same file
+            e.target.value = ""
           }}
         />
         <button
           onClick={() => fbxRef.current?.click()}
-          className="px-2.5 py-1 rounded border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors"
-          title="Textured FBX rendered in Camera Feeds + Point Cloud tabs — does not affect placement calculations"
+          className={feedsFbxUrl ? "glass-btn glass-btn--accent" : "glass-btn"}
+          title="Textured FBX rendered in Camera Feeds + Point Cloud tabs"
         >
-          {feedsFbxUrl ? "FBX Loaded ✓" : "Upload FBX"}
+          {feedsFbxUrl ? "FBX ✓" : "Upload FBX"}
         </button>
         <button
           onClick={handleReason}
           disabled={reasoning || !sceneId}
-          className="px-2.5 py-1 rounded border border-cyan/30 text-cyan hover:bg-cyan/10 transition-colors disabled:opacity-50"
+          className="glass-btn glass-btn--accent"
         >
-          {reasoning ? "K2 Reasoning…" : "Stream K2 Importance"}
+          {reasoning ? "Streaming…" : "Stream K2"}
         </button>
+      </div>
 
-        <Pill color="green">{onlineCameras} Cameras Online</Pill>
-        <Pill color={k2Streaming ? "cyan" : "dim"}>
-          {k2Streaming ? "K2 Reasoning…" : "K2 Think V2 Ready"}
-        </Pill>
-        {alerts > 0 && <Pill color="amber">{alerts} Alert{alerts > 1 ? "s" : ""}</Pill>}
+      {/* Right — alerts only (keep minimal) */}
+      <div className="flex items-center justify-end gap-2">
+        {alerts > 0 && <Pill color="amber">{alerts} alert{alerts > 1 ? "s" : ""}</Pill>}
       </div>
     </header>
   )
 }
 
-function Pill({ color, children }: { color: string; children: React.ReactNode }) {
+function Pill({ color, children, pulse }: { color: string; children: React.ReactNode; pulse?: boolean }) {
   const dot: Record<string, string> = {
-    green: "bg-green",
-    cyan: "bg-cyan",
-    amber: "bg-amber",
-    dim: "bg-dim",
+    green: "bg-green shadow-[0_0_8px_rgba(166,227,161,0.7)]",
+    cyan:  "bg-cyan shadow-[0_0_8px_rgba(137,180,250,0.7)]",
+    amber: "bg-amber shadow-[0_0_8px_rgba(250,179,135,0.7)]",
+    dim:   "bg-dim",
   }
   return (
-    <span className="flex items-center gap-1.5 text-text">
-      <span className={`w-1.5 h-1.5 rounded-full ${dot[color] ?? "bg-dim"}`} />
+    <span className="flex items-center gap-2 text-[11px] font-medium text-text/80 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06] backdrop-blur-md">
+      <span className={`w-1.5 h-1.5 rounded-full ${dot[color] ?? "bg-dim"} ${pulse ? "animate-pulse" : ""}`} />
       {children}
     </span>
   )
