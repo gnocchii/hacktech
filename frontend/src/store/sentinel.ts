@@ -1,6 +1,16 @@
 import { create } from "zustand"
 import type { Scene, Camera, TwinTab, ThreatPath, CameraLighting, PointCloudData, ImportancePayload, SceneAnalysis } from "@/lib/types"
 
+export type Activity = {
+  id: string
+  ts: number
+  severity: "critical" | "warning" | "info" | "success"
+  title: string
+  body?: string
+}
+
+type LoadingEntry = { label: string; progress?: number }
+
 interface SentinelState {
   // ─── Scene ─────────────────────────────────────────────────────
   scene: Scene | null
@@ -64,6 +74,13 @@ interface SentinelState {
   setImportanceScore: (s: number) => void
   optimizing: boolean
   setOptimizing: (v: boolean) => void
+
+  // ─── Activity log + global loading ─────────────────────────────
+  activities: Activity[]
+  pushActivity: (a: Omit<Activity, "id" | "ts"> & { id?: string; ts?: number }) => void
+  loading: Record<string, LoadingEntry>
+  startLoading: (key: string, label: string, progress?: number) => void
+  stopLoading: (key: string) => void
 }
 
 export const useSentinel = create<SentinelState>((set) => ({
@@ -128,4 +145,27 @@ export const useSentinel = create<SentinelState>((set) => ({
   setImportanceScore: (importanceScore) => set({ importanceScore }),
   optimizing: false,
   setOptimizing: (optimizing) => set({ optimizing }),
+
+  activities: [],
+  pushActivity: (a) => set((s) => ({
+    activities: [
+      {
+        id: a.id ?? `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        ts: a.ts ?? Date.now(),
+        severity: a.severity,
+        title: a.title,
+        body: a.body,
+      },
+      ...s.activities,
+    ].slice(0, 200),  // cap so the panel doesn't grow without bound
+  })),
+  loading: {},
+  startLoading: (key, label, progress) => set((s) => ({
+    loading: { ...s.loading, [key]: { label, progress } },
+  })),
+  stopLoading: (key) => set((s) => {
+    const next = { ...s.loading }
+    delete next[key]
+    return { loading: next }
+  }),
 }))

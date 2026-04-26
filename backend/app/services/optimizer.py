@@ -469,7 +469,60 @@ def _build_candidates(scene: dict, step: float, virtual_walls: Optional[list[dic
     # a camera in the void can't raycast through walls. The polygon filter was
     # killing 50% of reachable cells because wall-mount candidates 0.12 m off
     # the wall fall just outside the polygon edge.
+
+    # Wall-trap filter: drop candidate positions where NO yaw can produce a
+    # demoable shot — every direction has a wall right in the camera's face.
+    # Without this, the optimizer happily places cameras in tight closet corners
+    # and the retarget pass picks "least bad" yaws that still look terrible.
+    candidates = _drop_wall_trapped_candidates(candidates, walls + (virtual_walls or []))
     return candidates
+
+
+_WALL_TRAP_MIN_DEPTH = 2.0  # best yaw from this position must clear this much
+_WALL_TRAP_YAW_SAMPLES_DEG = (-90, -60, -30, 0, 30, 60, 90)  # search inside the half-plane
+
+
+def _drop_wall_trapped_candidates(candidates: list[dict], all_walls: list[dict]) -> list[dict]:
+    """
+    For each candidate, check whether SOME forward direction has open space
+    beyond _WALL_TRAP_MIN_DEPTH. Sample yaws across the inward half-plane (the
+    wall normal ± 90°). If the best ray distance across all sampled yaws is
+    still below threshold, the candidate is in a corner trap and gets dropped.
+    """
+    if not candidates:
+        return candidates
+
+    # Build wall segments once
+    segs = np.array(
+        [[w["from"][0], w["from"][1], w["to"][0], w["to"][1]] for w in all_walls],
+        dtype=float,
+    ) if all_walls else np.zeros((0, 4), dtype=float)
+
+    kept: list[dict] = []
+    dropped = 0
+    for cand in candidates:
+        cam_xy = np.array(cand["position"][:2], dtype=float)
+        nx, ny = cand["normal"][0], cand["normal"][1]
+        base_angle = math.atan2(ny, nx)
+        best_depth = 0.0
+        for offset_deg in _WALL_TRAP_YAW_SAMPLES_DEG:
+            a = base_angle + math.radians(offset_deg)
+            d = _ray_seg_distances(
+                cam_xy,
+                np.array([math.cos(a), math.sin(a)]),
+                segs,
+            )
+            if d > best_depth:
+                best_depth = d
+            if best_depth >= _WALL_TRAP_MIN_DEPTH:
+                break  # candidate has at least one good yaw — keep it
+        if best_depth >= _WALL_TRAP_MIN_DEPTH:
+            kept.append(cand)
+        else:
+            dropped += 1
+    if dropped:
+        print(f"[optimizer] wall-trap filter: dropped {dropped} candidates with no usable yaw")
+    return kept
 
 
 _DOOR_AIM_RADIUS = 12.0  # consider candidates within this distance of the door
@@ -569,8 +622,11 @@ def _point_to_polygon_distance(x: float, y: float, polygon: list[list[float]]) -
 _DEMO_YAW_SAMPLES_DEG = (-60, -45, -30, -15, 0, 15, 30, 45, 60)
 _DEMO_AIM_DISTANCE = 4.0
 _DEMO_AIM_FLOOR_OFFSET = 1.0  # torso height above floor → ~20° tilt-down from a 2.7m mount
-_DEMO_MIN_FRAME_DEPTH = 2.0   # below this, a wall is filling the frame at point-blank range
-_DEMO_FRAME_RAY_OFFSETS_DEG = (-20, -10, 0, 10, 20)  # central FOV samples for "depth"
+_DEMO_MIN_FRAME_DEPTH = 2.5   # below this, a wall is filling part of the frame too closely
+# Sample rays across most of the camera's horizontal frame. ±30° catches walls
+# at the edges of a 120° FOV cone — those show up clearly in the rendered POV
+# even though the central crosshair is on a clear shot.
+_DEMO_FRAME_RAY_OFFSETS_DEG = (-30, -20, -10, 0, 10, 20, 30)
 
 
 def _ray_seg_distances(cam_xy: np.ndarray, dir_xy: np.ndarray, segs: np.ndarray) -> float:
@@ -670,9 +726,11 @@ def _refine_demo_target(
         tx = float(cam_pos[0] + math.cos(a) * _DEMO_AIM_DISTANCE)
         ty = float(cam_pos[1] + math.sin(a) * _DEMO_AIM_DISTANCE)
 
-        # Frame-depth: median first-wall distance across the central FOV.
-        # Cameras pointed at a wall 1m away will have a tiny median; cameras
-        # pointed down a hallway will have a large one.
+        # Frame-depth: how close the closest wall is across the central FOV.
+        # We want the CLOSEST ray to be at least _DEMO_MIN_FRAME_DEPTH away —
+        # a single wall in one corner of the frame ruins the demo even if the
+        # rest of the frame is open. Using min (not median) means "any half of
+        # the frame is wall" → heavy penalty.
         ray_dists = []
         for ray_deg in _DEMO_FRAME_RAY_OFFSETS_DEG:
             ra = a + math.radians(ray_deg)
@@ -682,12 +740,18 @@ def _refine_demo_target(
                 blockers,
             )
             ray_dists.append(d)
-        # Use median so a single ray slipping through a doorway doesn't rescue
-        # an otherwise wall-staring aim.
-        frame_depth = float(np.median(ray_dists))
-        # Smooth penalty: 0 at depth 0, linearly to 1.0 at _DEMO_MIN_FRAME_DEPTH,
-        # capped at 1.0 beyond. Squared so wall-staring yaws are heavily punished.
-        depth_factor = min(frame_depth / _DEMO_MIN_FRAME_DEPTH, 1.0) ** 2
+        # Two-tier frame depth check:
+        # 1) min ray must clear 1.5 m — no wall pasted to the side of the frame.
+        #    NaN/inf treated as 1000 m (camera shooting through a doorway/exterior).
+        # 2) 25th-percentile depth drives the smooth penalty.
+        ray_dists_finite = [min(d, 1000.0) for d in ray_dists]
+        min_depth = min(ray_dists_finite)
+        if min_depth < 1.5:
+            continue  # any wall <1.5 m anywhere in the central frame: skip yaw
+        frame_depth = float(np.percentile(ray_dists_finite, 25))
+        # Smooth penalty: 0 at depth 1.5m, linearly to 1.0 at _DEMO_MIN_FRAME_DEPTH,
+        # capped at 1.0 beyond. Cubed so close-wall yaws are heavily down-scored.
+        depth_factor = min(max(frame_depth - 1.5, 0.0) / max(_DEMO_MIN_FRAME_DEPTH - 1.5, 0.1), 1.0) ** 3
 
         target_3d = np.array([tx, ty, aim_z])
         fov = camera_fov_mask(cam_pos, target_3d, fov_h, fov_v, cells_3d)

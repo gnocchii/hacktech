@@ -416,7 +416,7 @@ function FbxFeedsLayout({
       <div className="flex flex-1 min-h-0">
         <div className="flex-1 p-4 min-w-0 flex flex-col">
           <div className="flex-1 min-h-0 relative">
-            <FbxPOV key={selected.id} camera={selected} url={url} captureRef={captureRef} />
+            <FbxPOV key={selected.id} camera={selected} url={url} captureRef={captureRef} noVignette />
             <PovHud camera={selected} hour={hour} size="large" />
             {refinedUrl && (
               <img

@@ -46,9 +46,11 @@ interface Props {
   url: string
   scale?: number
   captureRef?: CaptureRef
+  /** Hide the security-cam vignette overlay. Used for fullscreen / featured views. */
+  noVignette?: boolean
 }
 
-export default function FbxPOV({ camera, url, scale = 1, captureRef }: Props) {
+export default function FbxPOV({ camera, url, scale = 1, captureRef, noVignette = false }: Props) {
   return (
     <div className="relative w-full h-full bg-black overflow-hidden">
       <Canvas
@@ -66,13 +68,15 @@ export default function FbxPOV({ camera, url, scale = 1, captureRef }: Props) {
           <FbxModel url={url} scale={scale} />
         </Suspense>
       </Canvas>
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background:
-            "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.55) 100%)",
-        }}
-      />
+      {!noVignette && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              "radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,0.55) 100%)",
+          }}
+        />
+      )}
     </div>
   )
 }
