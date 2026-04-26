@@ -30,9 +30,9 @@ export default function LiveFeedsPanel() {
   }
 
   return (
-    <section className="px-4 pb-4 h-full flex flex-col min-h-0">
-      <div className="flex flex-col gap-2 flex-1 overflow-y-auto scroll-thin pr-0.5 min-h-0">
-        {cameras.map((cam) => (
+    <section className="h-full min-h-0 p-2">
+      <div className="h-full grid grid-cols-2 grid-rows-3 gap-1.5">
+        {cameras.slice(1, 7).map((cam) => (
           <FeedTile
             key={cam.id}
             cam={cam}
@@ -49,7 +49,7 @@ function FeedTile({ cam, selected, onClick }: { cam: Camera; selected: boolean; 
   return (
     <button
       onClick={onClick}
-      className={`relative h-56 shrink-0 rounded-md overflow-hidden border text-left transition-all bg-black
+      className={`relative w-full h-full rounded-md overflow-hidden border text-left transition-all bg-black
         ${selected
           ? "border-cyan/60 ring-2 ring-cyan/40 shadow-[0_0_20px_-4px_rgba(137,180,250,0.6)]"
           : "border-white/[0.06] hover:border-cyan/30 hover:ring-1 hover:ring-cyan/15"}`}
