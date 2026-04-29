@@ -124,16 +124,38 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
       if (videoEl.paused) videoEl.play().catch(() => {})
     }
     const kickResize = () => {
-      const inner = wrapRef.current?.querySelector('.video-to-ascii > div')
-      if (inner) {
-        const prev = inner.style.width
-        inner.style.width = '99.999%'
+      // Toggle every plausible container the lib's ResizeObserver may watch.
+      // The lib re-inits WebGL only when its observed container changes size
+      // AND the video has readyState >= 1, so we need a *real* size change.
+      const targets = [
+        wrapRef.current,
+        wrapRef.current?.querySelector('.video-to-ascii'),
+        wrapRef.current?.querySelector('.video-to-ascii > div'),
+      ].filter(Boolean)
+      const prev = targets.map((el) => el.style.width)
+      targets.forEach((el) => { el.style.width = '99.999%' })
+      requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          requestAnimationFrame(() => { inner.style.width = prev })
+          targets.forEach((el, i) => { el.style.width = prev[i] })
         })
-      }
+      })
       window.dispatchEvent(new Event('resize'))
     }
+    // Poll until the offscreen video has real dimensions, then kick a few
+    // times — this is the signal that the lib's initWebGL would actually
+    // succeed. Without this, kicks fired during loadedmetadata can land
+    // before videoWidth populates and silently no-op.
+    let dimsKickTries = 0
+    const dimsKick = setInterval(() => {
+      dimsKickTries++
+      if (videoEl && videoEl.videoWidth > 0) {
+        kickResize()
+        requestAnimationFrame(() => kickResize())
+        clearInterval(dimsKick)
+      } else if (dimsKickTries > 200) {
+        clearInterval(dimsKick)
+      }
+    }, 50)
     const attach = () => {
       if (attached) return true
       const v = wrapRef.current?.querySelector('video')
@@ -146,8 +168,8 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
       v.autoplay = true
       const onLoaded = () => { kickResize(); tryPlay() }
       const onPlaying = () => { kickResize() }
-      v.addEventListener('loadedmetadata', onLoaded, { once: true })
-      v.addEventListener('playing', onPlaying, { once: true })
+      v.addEventListener('loadedmetadata', onLoaded)
+      v.addEventListener('playing', onPlaying)
       tryPlay()
       attached = true
       setTimeout(kickResize, 200)
@@ -216,6 +238,7 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
       window.removeEventListener('mousemove', onRealMove)
       clearInterval(attachInterval)
       clearInterval(watchdog)
+      clearInterval(dimsKick)
       document.removeEventListener('pointerdown', onUserKick)
       document.removeEventListener('keydown', onUserKick)
       document.removeEventListener('visibilitychange', onVisibility)
