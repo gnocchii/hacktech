@@ -123,20 +123,31 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
       if (!videoEl) return
       if (videoEl.paused) videoEl.play().catch(() => {})
     }
+    let kicking = false
     const kickResize = () => {
-      // Toggle every plausible container the lib's ResizeObserver may watch.
-      // The lib re-inits WebGL only when its observed container changes size
-      // AND the video has readyState >= 1, so we need a *real* size change.
+      // Re-entrancy guard: overlapping kicks were stomping the saved prev
+      // value (a second kick captured the in-flight "95%" as prev and then
+      // restored to that, leaving the container stuck at 95% width).
+      if (kicking) return
+      kicking = true
       const targets = [
         wrapRef.current,
         wrapRef.current?.querySelector('.video-to-ascii'),
         wrapRef.current?.querySelector('.video-to-ascii > div'),
       ].filter(Boolean)
-      const prev = targets.map((el) => el.style.width)
-      targets.forEach((el) => { el.style.width = '99.999%' })
+      // The ascii-bg CSS uses `!important` on width/height — plain inline
+      // styles get overridden, so we must use setProperty(..., 'important')
+      // to actually budge the box.
+      const prevW = targets.map((el) => el.style.getPropertyValue('width'))
+      const prevP = targets.map((el) => el.style.getPropertyPriority('width'))
+      targets.forEach((el) => el.style.setProperty('width', '95%', 'important'))
       requestAnimationFrame(() => {
         requestAnimationFrame(() => {
-          targets.forEach((el, i) => { el.style.width = prev[i] })
+          targets.forEach((el, i) => {
+            if (prevW[i]) el.style.setProperty('width', prevW[i], prevP[i])
+            else el.style.removeProperty('width')
+          })
+          kicking = false
         })
       })
       window.dispatchEvent(new Event('resize'))
@@ -191,51 +202,59 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
       if (videoEl.paused || videoEl.readyState < 2) tryPlay()
     }, 1000)
 
+    // STASHED: cursor-highlight tracking + idle sweep. video2ascii brightens
+    // chars under the pointer; the block below faked mouse moves so the
+    // highlight wandered when idle. Flip to true to revive both behaviors
+    // (also flip enableMouse=true on the Video2Ascii component below).
+    const CURSOR_HIGHLIGHT = false
     let lastUserMove = performance.now()
     let idleRaf = 0
-    const IDLE_DELAY = 1800
-    const onRealMove = () => {
-      lastUserMove = performance.now()
-      if (idleRaf) { cancelAnimationFrame(idleRaf); idleRaf = 0 }
-    }
-    window.addEventListener('mousemove', onRealMove, { passive: true })
+    let onRealMove = () => {}
+    if (CURSOR_HIGHLIGHT) {
+      const IDLE_DELAY = 1800
+      onRealMove = () => {
+        lastUserMove = performance.now()
+        if (idleRaf) { cancelAnimationFrame(idleRaf); idleRaf = 0 }
+      }
+      window.addEventListener('mousemove', onRealMove, { passive: true })
 
-    const SWEEP_PERIOD_MS = 14000
-    const SWEEPS = 3
-    const idleStart = performance.now()
-    const idleTick = (now) => {
-      if (now - lastUserMove > IDLE_DELAY) {
-        const container = wrapRef.current?.querySelector('.video-to-ascii > div')
-        if (container) {
-          const rect = container.getBoundingClientRect()
-          if (rect.width > 0 && rect.height > 0) {
-            const padX = rect.width * 0.08
-            const padY = rect.height * 0.12
-            const innerW = rect.width  - padX * 2
-            const innerH = rect.height - padY * 2
+      const SWEEP_PERIOD_MS = 14000
+      const SWEEPS = 3
+      const idleStart = performance.now()
+      const idleTick = (now) => {
+        if (now - lastUserMove > IDLE_DELAY) {
+          const container = wrapRef.current?.querySelector('.video-to-ascii > div')
+          if (container) {
+            const rect = container.getBoundingClientRect()
+            if (rect.width > 0 && rect.height > 0) {
+              const padX = rect.width * 0.08
+              const padY = rect.height * 0.12
+              const innerW = rect.width  - padX * 2
+              const innerH = rect.height - padY * 2
 
-            const u = ((now - idleStart) % SWEEP_PERIOD_MS) / SWEEP_PERIOD_MS
-            const yPhase = u * 2
-            const yBase = yPhase <= 1 ? yPhase : 2 - yPhase
-            const yT = 0.5 - 0.5 * Math.cos(yBase * Math.PI)
-            const y = rect.top + padY + innerH * yT
-            const xT = 0.5 + 0.5 * Math.sin(u * SWEEPS * Math.PI * 2)
-            const x = rect.left + padX + innerW * xT
+              const u = ((now - idleStart) % SWEEP_PERIOD_MS) / SWEEP_PERIOD_MS
+              const yPhase = u * 2
+              const yBase = yPhase <= 1 ? yPhase : 2 - yPhase
+              const yT = 0.5 - 0.5 * Math.cos(yBase * Math.PI)
+              const y = rect.top + padY + innerH * yT
+              const xT = 0.5 + 0.5 * Math.sin(u * SWEEPS * Math.PI * 2)
+              const x = rect.left + padX + innerW * xT
 
-            container.dispatchEvent(new MouseEvent('mousemove', {
-              clientX: x, clientY: y, bubbles: true, cancelable: true,
-            }))
+              container.dispatchEvent(new MouseEvent('mousemove', {
+                clientX: x, clientY: y, bubbles: true, cancelable: true,
+              }))
+            }
           }
         }
+        idleRaf = requestAnimationFrame(idleTick)
       }
       idleRaf = requestAnimationFrame(idleTick)
     }
-    idleRaf = requestAnimationFrame(idleTick)
 
     return () => {
       cancelAnimationFrame(raf)
-      cancelAnimationFrame(idleRaf)
-      window.removeEventListener('mousemove', onRealMove)
+      if (idleRaf) cancelAnimationFrame(idleRaf)
+      if (CURSOR_HIGHLIGHT) window.removeEventListener('mousemove', onRealMove)
       clearInterval(attachInterval)
       clearInterval(watchdog)
       clearInterval(dimsKick)
@@ -252,14 +271,14 @@ export default function BeckmanAscii({ glbUrl = '/beckman.glb' }) {
     <div ref={wrapRef} style={{ width: '100%', height: '100%' }}>
       <Video2Ascii
         src=""
-        numColumns={240}
+        numColumns={340}
         charset="detailed"
         colored={true}
         brightness={0.7}
-        highlight={45}
+        highlight={0}
         autoPlay={true}
         isPlaying={true}
-        enableMouse={true}
+        enableMouse={false}
         trailLength={120}
       />
     </div>

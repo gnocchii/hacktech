@@ -23,9 +23,10 @@ const config: Config = {
         yellow:   "#f9e2af",  // yellow
       },
       fontFamily: {
-        sans:    ["'Plus Jakarta Sans'", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
-        mono:    ["'Geist Mono'", "ui-monospace", "monospace"],
-        display: ["'Instrument Serif'", "serif"],
+        sans:      ["'Plus Jakarta Sans'", "system-ui", "-apple-system", "Segoe UI", "sans-serif"],
+        mono:      ["'Geist Mono'", "ui-monospace", "monospace"],
+        display:   ["'Instrument Serif'", "serif"],
+        helvetica: ['"Helvetica Neue"', "Helvetica", "Arial", "sans-serif"],
       },
     },
   },

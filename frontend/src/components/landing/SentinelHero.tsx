@@ -1,52 +1,29 @@
 "use client"
+import dynamic from "next/dynamic"
 import { useEffect, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useSentinelUploads } from "@/hooks/useSentinelUploads"
+import StaggeredText from "@/components/react-bits/staggered-text"
+import ParticleText from "@/components/react-bits/particle-text"
+import GlitchText from "@/components/react-bits/glitch-text"
+import DecryptedText from "@/components/DecryptedText"
 
-const TEXT = "sentinel"
+// ASCIIText injects a <style> tag with @import + a hardcoded radial-gradient
+// on the <pre> overlay. The @import causes a Next.js SSR hydration mismatch,
+// and the gradient bleeds magenta/orange/yellow over our white wordmark.
+// Dynamic-import with ssr:false to dodge hydration; the gradient itself is
+// neutralized by overrides in globals.css scoped to .sh-hero-ascii-wrap.
+const ASCIIText = dynamic(() => import("@/components/ASCIIText"), { ssr: false })
+
+const TITLE = "sentinel"
 const SUBTITLE = "reasoned surveillance."
-const CHARS = "abcdefghijklmnopqrstuvwxyz"
-const PRE_HOLD_MS = 600
-const STAGGER_MS = 220
-const SCRAMBLE_MS = 260
-const SCRAMBLE_TICK = 38
-// Subtitle starts after the title is fully revealed
-const SUBTITLE_DELAY_MS = PRE_HOLD_MS + TEXT.length * STAGGER_MS + 200
-const SUBTITLE_STAGGER_MS = 70
-const SUBTITLE_SCRAMBLE_MS = 220
-
-type CellStatus = "hidden" | "scrambling" | "revealed"
-type Cell = { status: CellStatus; display: string }
-
-function centerOutOrder(len: number) {
-  const middle = Math.floor(len / 2)
-  const out: number[] = []
-  let off = 0
-  while (out.length < len) {
-    if (off === 0) out.push(middle)
-    else {
-      if (middle - off >= 0) out.push(middle - off)
-      if (middle + off < len) out.push(middle + off)
-    }
-    off++
-  }
-  return out.slice(0, len)
-}
-
-const randomChar = () => CHARS[Math.floor(Math.random() * CHARS.length)]
-// Punctuation/whitespace shouldn't scramble through random letters — pass through
-const isLiteral = (ch: string) => ch === " " || !/[a-z]/i.test(ch)
 
 export default function SentinelHero() {
   const router = useRouter()
   const { scene, sceneId, feedsFbxUrl, uploading, handleUpload, handleUploadFbx } = useSentinelUploads()
   const routedRef = useRef(false)
-  // Snapshot whether both files were already in the store at mount. If yes,
-  // the user navigated back to the landing intentionally (e.g., favicon click)
-  // and we should NOT auto-bounce them to /twin again.
   const arrivedReadyRef = useRef(Boolean(sceneId && feedsFbxUrl))
 
-  // Auto-route only after a *fresh* upload completes both files in this session
   useEffect(() => {
     if (arrivedReadyRef.current) return
     if (sceneId && feedsFbxUrl && !routedRef.current) {
@@ -55,137 +32,40 @@ export default function SentinelHero() {
     }
   }, [sceneId, feedsFbxUrl, router])
 
-  // SVG turbulence seed shimmer
-  const [seed, setSeed] = useState(1)
-  useEffect(() => {
-    const id = setInterval(() => setSeed((s) => (s % 99) + 1), 120)
-    return () => clearInterval(id)
-  }, [])
-
-  // Per-char status — title
-  const [cells, setCells] = useState<Cell[]>(() =>
-    TEXT.split("").map(() => ({ status: "hidden", display: "" }))
-  )
-  // Per-char status — subtitle
-  const [subCells, setSubCells] = useState<Cell[]>(() =>
-    SUBTITLE.split("").map(() => ({ status: "hidden", display: "" }))
-  )
-
-  useEffect(() => {
-    const order = centerOutOrder(TEXT.length)
-    const intervals: ReturnType<typeof setInterval>[] = []
-    const timeouts: ReturnType<typeof setTimeout>[] = []
-
-    order.forEach((idx, i) => {
-      const startAt = PRE_HOLD_MS + i * STAGGER_MS
-
-      const beginScramble = setTimeout(() => {
-        const scrambleId = setInterval(() => {
-          setCells((prev) => {
-            const next = prev.slice()
-            next[idx] = { status: "scrambling", display: randomChar() }
-            return next
-          })
-        }, SCRAMBLE_TICK)
-        intervals.push(scrambleId)
-
-        const settle = setTimeout(() => {
-          clearInterval(scrambleId)
-          setCells((prev) => {
-            const next = prev.slice()
-            next[idx] = { status: "revealed", display: TEXT[idx] }
-            return next
-          })
-        }, SCRAMBLE_MS)
-        timeouts.push(settle)
-      }, startAt)
-      timeouts.push(beginScramble)
-    })
-
-    // Subtitle scramble — left-to-right, faster, after title
-    SUBTITLE.split("").forEach((ch, idx) => {
-      const startAt = SUBTITLE_DELAY_MS + idx * SUBTITLE_STAGGER_MS
-
-      const beginScramble = setTimeout(() => {
-        if (isLiteral(ch)) {
-          setSubCells((prev) => {
-            const next = prev.slice()
-            next[idx] = { status: "revealed", display: ch }
-            return next
-          })
-          return
-        }
-        const scrambleId = setInterval(() => {
-          setSubCells((prev) => {
-            const next = prev.slice()
-            next[idx] = { status: "scrambling", display: randomChar() }
-            return next
-          })
-        }, SCRAMBLE_TICK)
-        intervals.push(scrambleId)
-
-        const settle = setTimeout(() => {
-          clearInterval(scrambleId)
-          setSubCells((prev) => {
-            const next = prev.slice()
-            next[idx] = { status: "revealed", display: ch }
-            return next
-          })
-        }, SUBTITLE_SCRAMBLE_MS)
-        timeouts.push(settle)
-      }, startAt)
-      timeouts.push(beginScramble)
-    })
-
-    return () => {
-      timeouts.forEach(clearTimeout)
-      intervals.forEach(clearInterval)
-    }
-  }, [])
-
   return (
     <div className="sh-hero">
-      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden="true">
-        <defs>
-          <filter id="sentinel-dissolve" x="-6%" y="-18%" width="112%" height="136%">
-            <feTurbulence
-              type="fractalNoise"
-              baseFrequency="0.9 0.9"
-              numOctaves={1}
-              seed={seed}
-              result="noise"
-            />
-            <feDisplacementMap
-              in="SourceGraphic"
-              in2="noise"
-              scale={2.6}
-              xChannelSelector="R"
-              yChannelSelector="G"
-            />
-          </filter>
-        </defs>
-      </svg>
-
-      <h1 className="sh-hero-title" aria-label="sentinel">
-        <span className="sh-hero-broken">
-          <span className="sh-hero-letters" aria-hidden="true">
-            {cells.map((cell, i) => (
-              <span key={i} className={`sh-hero-char is-${cell.status}`}>
-                {cell.display}
-              </span>
-            ))}
-          </span>
-        </span>
-        <span className="sh-hero-cursor" aria-hidden="true">_</span>
-      </h1>
-
-      <div className="sh-hero-subtitle" aria-label={SUBTITLE}>
-        {subCells.map((cell, i) => (
-          <span key={i} className={`sh-hero-subchar is-${cell.status}`}>
-            {cell.display === " " ? " " : cell.display}
-          </span>
-        ))}
+      <div className="sh-hero-ascii-wrap">
+        <ASCIIText
+          text={TITLE}
+          asciiFontSize={5}
+          textFontSize={280}
+          planeBaseHeight={9}
+          textColor="#ffffff"
+          enableWaves
+        />
       </div>
+
+      {/* STASHED — typed-particle title (toggle to true to switch back) */}
+      {false && (
+        <div className="sh-hero-particle-wrap">
+          <ParticleText
+            text={TITLE}
+            fontFamily='"Helvetica Neue", Helvetica, Arial, sans-serif'
+            fontWeight={700}
+            colors={["#ffffff"]}
+            backgroundColor="transparent"
+            particleSize={2}
+            particleGap={4}
+            asciiChars="@#%&8BWMXxoc/\\:;|*+=-,. "
+            asciiGlyphSize={11}
+            autoFit
+            typed
+            typedStaggerMs={130}
+            typedFadeMs={70}
+            entryDelay={1100}
+          />
+        </div>
+      )}
 
       <GlassPanel
         scene={scene}
@@ -194,7 +74,6 @@ export default function SentinelHero() {
         handleUpload={handleUpload}
         handleUploadFbx={handleUploadFbx}
       />
-
     </div>
   )
 }
@@ -218,80 +97,106 @@ function GlassPanel({ scene, feedsFbxUrl, uploading, handleUpload, handleUploadF
   }
   const onLeave = () => setM({ x: "50%", y: "50%" })
 
-  return (
-    <div
-      className="sh-glass-panel"
-      onMouseMove={onMove}
-      onMouseLeave={onLeave}
-      style={{ ["--mx" as any]: m.x, ["--my" as any]: m.y }}
-    >
-      <div className="sh-glass-panel-blur" />
-      <div className="sh-glass-panel-tint" />
-      <div className="sh-glass-panel-spec" />
-      <div className="sh-glass-panel-content">
-        <p className="sh-glass-panel-instruction">upload room meshes to deploy</p>
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".usdz"
-          className="sh-glass-panel-file"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) void handleUpload(file)
-            e.target.value = ""
-          }}
-        />
-        <input
-          ref={fbxRef}
-          type="file"
-          accept=".fbx"
-          className="sh-glass-panel-file"
-          onChange={(e) => {
-            const file = e.target.files?.[0]
-            if (file) handleUploadFbx(file)
-            e.target.value = ""
-          }}
-        />
+  const usdzReady = !!scene
+  const fbxReady = !!feedsFbxUrl
 
-        <div className="sh-glass-panel-actions">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className={scene ? "sh-glass-btn sh-glass-btn--accent" : "sh-glass-btn"}
-          >
-            {uploading ? "parsing…" : scene ? "usdz loaded" : "upload usdz"}
-          </button>
-          <button
-            type="button"
-            onClick={() => fbxRef.current?.click()}
-            className={feedsFbxUrl ? "sh-glass-btn sh-glass-btn--accent" : "sh-glass-btn"}
-            title="Textured FBX rendered in Camera Feeds + Point Cloud tabs"
-          >
-            {feedsFbxUrl ? "fbx loaded" : "upload fbx"}
-          </button>
+  return (
+    <>
+      {/* Liquid-glass distortion filter — referenced by .sh-glass-filter via
+          `filter: url(#sh-glass-distortion)`. Scoped SVG so it doesn't bleed
+          into other instances. */}
+      <svg width="0" height="0" style={{ position: "absolute" }} aria-hidden>
+        <defs>
+          <filter id="sh-glass-distortion" x="0%" y="0%" width="100%" height="100%">
+            <feTurbulence type="fractalNoise" baseFrequency="0.008 0.008" numOctaves="2" seed="92" result="noise" />
+            <feGaussianBlur in="noise" stdDeviation="2" result="blurredNoise" />
+            <feDisplacementMap in="SourceGraphic" in2="blurredNoise" scale="70" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </defs>
+      </svg>
+
+      <div
+        className="sh-glass-panel"
+        onMouseMove={onMove}
+        onMouseLeave={onLeave}
+        style={{ ["--mx" as any]: m.x, ["--my" as any]: m.y }}
+      >
+        <div className="sh-glass-filter" />
+        <div className="sh-glass-overlay" />
+        <div className="sh-glass-specular" />
+
+        <div className="sh-glass-content">
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".usdz"
+            className="sh-glass-panel-file"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) void handleUpload(file)
+              e.target.value = ""
+            }}
+          />
+          <input
+            ref={fbxRef}
+            type="file"
+            accept=".fbx"
+            className="sh-glass-panel-file"
+            onChange={(e) => {
+              const file = e.target.files?.[0]
+              if (file) handleUploadFbx(file)
+              e.target.value = ""
+            }}
+          />
+
+          <div className="sh-glass-row">
+            <button
+              type="button"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+              className={`sh-glass-pill ${usdzReady ? "is-ready" : ""}`}
+            >
+              <span className="sh-glass-pill-prefix">›</span>
+              <span className="sh-glass-pill-label">
+                {uploading ? "parsing…" : usdzReady ? "usdz loaded" : "upload usdz"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => fbxRef.current?.click()}
+              className={`sh-glass-pill ${fbxReady ? "is-ready" : ""}`}
+              title="Textured FBX rendered in Camera Feeds + Point Cloud tabs"
+            >
+              <span className="sh-glass-pill-prefix">›</span>
+              <span className="sh-glass-pill-label">
+                {fbxReady ? "fbx loaded" : "upload fbx"}
+              </span>
+            </button>
+          </div>
+
+          <p className="sh-glass-foot">
+            read the{" "}
+            <a
+              href="https://github.com/gnocchii/sentinel"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sh-glass-foot-link"
+            >
+              github
+            </a>
+            {" "}or{" "}
+            <a
+              href="https://devpost.com/software/sentinel-qkt9cn?ref_content=user-portfolio&ref_feature=in_progress"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="sh-glass-foot-link"
+            >
+              devpost
+            </a>
+            !
+          </p>
         </div>
-        <p className="sh-glass-panel-links">
-          read our{" "}
-          <a
-            href="https://github.com/gnocchii/sentinel"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sh-glass-panel-link"
-          >
-            github
-          </a>{" "}
-          or{" "}
-          <a
-            href="https://devpost.com/software/sentinel-qkt9cn?ref_content=user-portfolio&ref_feature=in_progress"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="sh-glass-panel-link"
-          >
-            devpost
-          </a>
-        </p>
       </div>
-    </div>
+    </>
   )
 }
