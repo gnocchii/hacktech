@@ -73,7 +73,6 @@ export default function TopBar() {
             src="/favicon.png"
             alt="Sentinel"
             className="w-8 h-8 rounded-md object-cover"
-            style={{ boxShadow: "0 0 14px -2px rgba(137,180,250,0.45)" }}
           />
         </Link>
       </div>
