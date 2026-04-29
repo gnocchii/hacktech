@@ -36,6 +36,10 @@ app = FastAPI(title="Sentinel API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    # Catch every Vercel preview/branch deploy (`*.vercel.app`) without having
+    # to enumerate them. Production Vercel + custom domains stay in
+    # CORS_ORIGINS so they're explicit.
+    allow_origin_regex=r"https://([a-z0-9-]+\.)*vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

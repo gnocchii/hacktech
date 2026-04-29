@@ -1,0 +1,40 @@
+# Anything not needed by the backend Docker build (context is the repo root)
+.git
+.github
+.next
+.vercel
+node_modules
+**/node_modules
+**/.next
+**/dist
+**/.venv
+**/.vite
+
+# Big artifacts
+**/*.usdz
+**/*.fbx
+**/*.glb
+**/*.ply
+**/*.zip
+**/*.png
+**/*.jpg
+
+# Anything outside backend/
+frontend/
+app/
+dev/
+reconstruction/
+_polyexports/
+_usdz_inspect/
+4_25_2026/
+4_25_2026.dxf
+public/
+
+# Misc
+.DS_Store
+.env.local
+.env.production
+*.log
+
+# Keep .env at root (uvicorn reads it) — but Railway sets vars itself, so safe to ignore
+.env
